@@ -128,6 +128,14 @@ func (w *Workflow) Release(ctx context.Context, shipment, actor string, now time
 	w.mu.Unlock()
 
 	if err := signer.SignRelease(ctx, c); err != nil {
+		w.mu.Lock()
+		failed := w.cases[shipment]
+		if failed.Status == domain.CustomsReleasing {
+			failed.Status = domain.CustomsPending
+			failed.UpdatedAt = now
+			w.cases[shipment] = failed
+		}
+		w.mu.Unlock()
 		return Case{}, fmt.Errorf("sign customs release: %w", err)
 	}
 	w.mu.Lock()
