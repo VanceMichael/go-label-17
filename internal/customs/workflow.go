@@ -30,6 +30,10 @@ type Workflow struct {
 	cases map[string]Case
 }
 
+type ReleaseSigner interface {
+	SignRelease(context.Context, Case) error
+}
+
 func NewWorkflow() *Workflow { return &Workflow{cases: map[string]Case{}} }
 func (w *Workflow) Open(_ context.Context, c Case) error {
 	if c.ID == "" || c.ShipmentID == "" || c.TenantID == "" {
@@ -101,5 +105,37 @@ func (w *Workflow) Get(shipment string) (Case, error) {
 	}
 	c.Documents = append([]Document(nil), c.Documents...)
 	c.Notes = append([]string(nil), c.Notes...)
+	return c, nil
+}
+
+func (w *Workflow) Release(ctx context.Context, shipment, actor string, now time.Time, signer ReleaseSigner) (Case, error) {
+	if shipment == "" || actor == "" || now.IsZero() || signer == nil {
+		return Case{}, domain.ErrInvalid
+	}
+	w.mu.Lock()
+	c, ok := w.cases[shipment]
+	if !ok {
+		w.mu.Unlock()
+		return Case{}, domain.ErrNotFound
+	}
+	if c.Status != domain.CustomsPending || len(c.Documents) == 0 {
+		w.mu.Unlock()
+		return Case{}, domain.ErrState
+	}
+	c.Status = domain.CustomsReleasing
+	c.UpdatedAt = now
+	w.cases[shipment] = c
+	w.mu.Unlock()
+
+	if err := signer.SignRelease(ctx, c); err != nil {
+		return Case{}, fmt.Errorf("sign customs release: %w", err)
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	c = w.cases[shipment]
+	c.Status = domain.CustomsReleased
+	c.Notes = append(c.Notes, "release signed by "+actor)
+	c.UpdatedAt = now
+	w.cases[shipment] = c
 	return c, nil
 }

@@ -35,10 +35,11 @@ const (
 type CustomsStatus string
 
 const (
-	CustomsPending  CustomsStatus = "pending"
-	CustomsReview   CustomsStatus = "review"
-	CustomsReleased CustomsStatus = "released"
-	CustomsHeld     CustomsStatus = "held"
+	CustomsPending   CustomsStatus = "pending"
+	CustomsReview    CustomsStatus = "review"
+	CustomsReleasing CustomsStatus = "releasing"
+	CustomsReleased  CustomsStatus = "released"
+	CustomsHeld      CustomsStatus = "held"
 )
 
 type SecurityStatus string
